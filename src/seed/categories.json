@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "title": "Roman"
+  },
+  {
+    "id": 2,
+    "title": "Kişisel Gelişim"
+  },
+  {
+    "id": 3,
+    "title": "Bilim"
+  },
+  {
+    "id": 4,
+    "title": "Din Tasavvuf"
+  },
+  {
+    "id": 5,
+    "title": "Çocuk ve Gençlik"
+  },
+  {
+    "id": 6,
+    "title": "Öykü"
+  },
+  {
+    "id": 7,
+    "title": "Felsefe"
+  }
+]

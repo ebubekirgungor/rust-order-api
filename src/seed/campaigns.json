@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "description": "Sabahattin Ali'nin Roman kitaplarında 2 üründen 1 tanesi bedava",
+    "rule_author": "Sabahattin Ali",
+    "rule_category": "Roman",
+    "min_purchase_quantity": 2,
+    "discount_quantity": 1
+  },
+  {
+    "id": 2,
+    "description": "100 TL ve üzeri alışverişlerde sipariş toplamına %5 indirim",
+    "min_purchase_price": 100,
+    "discount_percent": 5
+  },
+  {
+    "id": 3,
+    "description": "Roman kategorisinden 4 ve üzeri kitap alışverişlerinde sipariş toplamına %10 indirim",
+    "rule_category": "Roman",
+    "min_purchase_quantity": 4,
+    "discount_percent": 10
+  }
+]
