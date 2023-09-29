@@ -1,27 +1,25 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+mod controllers {
+    pub mod users;
+}
+mod insertables;
+use actix_web::{App, HttpServer, web};
+use controllers::users;
+use diesel::{PgConnection, r2d2};
+use dotenvy::dotenv;
 use std::env;
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
-}
-
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
-
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
-}
+type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    dotenv().ok();
+    let pool = initialize_db_pool();
+    HttpServer::new(move || {
         App::new()
-            .service(hello)
-            .service(echo)
-            .route("/hey", web::get().to(manual_hello))
+        .app_data(web::Data::new(pool.clone()))
+            .service(users::get_users)
+            .service(users::get_user)
+            .service(users::create_user)
+            .service(users::delete_user)
     })
     .bind((
         "127.0.0.1",
@@ -32,4 +30,12 @@ async fn main() -> std::io::Result<()> {
     ))?
     .run()
     .await
+}
+
+fn initialize_db_pool() -> DbPool {
+    let conn_spec = std::env::var("DATABASE_URL").expect("Variable not defined");
+    let manager = r2d2::ConnectionManager::<PgConnection>::new(conn_spec);
+    r2d2::Pool::builder()
+        .build(manager)
+        .expect("DB Error")
 }

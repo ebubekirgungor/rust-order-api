@@ -1,21 +1,22 @@
 use diesel::prelude::*;
+use serde::{Serialize, Deserialize};
 use crate::schema::{users, categories, products, orders, campaigns, orders_products};
 
-#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Queryable, Selectable, Insertable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = users)]
 pub struct User {
     pub id: i32,
     pub username: String,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = categories)]
 pub struct Category {
     pub id: i32,
     pub title: String,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(belongs_to(Category))]
 #[diesel(table_name = products)]
 pub struct Product {
@@ -27,7 +28,7 @@ pub struct Product {
     pub stock_quantity: i32,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = campaigns)]
 pub struct Campaign {
     pub id: i32,
@@ -40,7 +41,7 @@ pub struct Campaign {
     pub rule_category: String,
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
 #[diesel(belongs_to(User))]
 #[diesel(belongs_to(Campaign))]
 #[diesel(table_name = orders)]
