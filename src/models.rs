@@ -33,12 +33,12 @@ pub struct Product {
 pub struct Campaign {
     pub id: i32,
     pub description: String,
-    pub min_purchase_price: f32,
-    pub min_purchase_quantity: i32,
-    pub discount_quantity: i32,
-    pub discount_percent: i32,
-    pub rule_author: String,
-    pub rule_category: String,
+    pub min_purchase_price: Option<f64>,
+    pub min_purchase_quantity: Option<i32>,
+    pub discount_quantity: Option<i32>,
+    pub discount_percent: Option<i32>,
+    pub rule_author: Option<String>,
+    pub rule_category: Option<String>,
 }
 
 #[derive(Serialize, Queryable, Selectable, Identifiable, Associations, Debug, PartialEq)]
@@ -47,8 +47,8 @@ pub struct Campaign {
 #[diesel(table_name = orders)]
 pub struct Order {
     pub id: i32,
-    pub price_without_discount: f32,
-    pub discounted_price: f32,
+    pub price_without_discount: f64,
+    pub discounted_price: f64,
     pub campaign_id: i32,
     pub user_id: i32,
 }
