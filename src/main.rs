@@ -1,9 +1,11 @@
 mod controllers {
     pub mod users;
+    pub mod products;
 }
 mod insertables;
 use actix_web::{App, HttpServer, web};
 use controllers::users;
+use controllers::products;
 use diesel::{PgConnection, r2d2};
 use dotenvy::dotenv;
 use std::env;
@@ -20,6 +22,10 @@ async fn main() -> std::io::Result<()> {
             .service(users::get_user)
             .service(users::create_user)
             .service(users::delete_user)
+            .service(products::get_products)
+            .service(products::get_product)
+            .service(products::create_product)
+            .service(products::delete_product)
     })
     .bind((
         "127.0.0.1",
