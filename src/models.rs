@@ -28,7 +28,7 @@ pub struct Product {
     pub stock_quantity: i32,
 }
 
-#[derive(Serialize, Queryable, Selectable, Identifiable, Debug, PartialEq, Default)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = campaigns)]
 pub struct Campaign {
     pub id: i32,
@@ -54,7 +54,7 @@ pub struct Order {
 
 }
 
-#[derive(Queryable, Selectable, Identifiable, Associations, Debug)]
+#[derive(Serialize, Queryable, Selectable, Identifiable, Associations, Debug)]
 #[diesel(belongs_to(Order))]
 #[diesel(belongs_to(Product))]
 #[diesel(table_name = orders_products)]

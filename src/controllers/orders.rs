@@ -5,7 +5,8 @@ use diesel::{prelude::*, r2d2};
 use rust_order_api::models::{Order, Product};
 use rust_order_api::schema;
 use schema::orders::dsl::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
 
@@ -19,6 +20,28 @@ struct OrderDto {
 pub struct ProductWithCategory {
     pub product: Product,
     pub category_title: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct OrderWithCampaign {
+    id: i32,
+    price_without_discount: f64,
+    discounted_price: f64,
+    campaign_id: Option<i32>,
+    user_id: i32,
+    username: String,
+    campaign_description: Option<String>,
+}
+
+#[derive(Queryable, Debug)]
+pub struct OrderWithFields {
+    id: i32,
+    price_without_discount: f64,
+    discounted_price: f64,
+    campaign_id: Option<i32>,
+    user_id: i32,
+    username: String,
+    campaign_description: Option<String>,
 }
 
 pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Order>, DbError> {
@@ -38,7 +61,7 @@ pub fn insert_new_order(
     conn: &mut PgConnection,
     _user_id: i32,
     _product_ids: Vec<i32>,
-) -> Result<Order, DbError> {
+) -> Result<Value, DbError> {
     let shipping_cost = 35.0;
     use rust_order_api::models::Campaign;
     use rust_order_api::models::User;
@@ -104,10 +127,7 @@ pub fn insert_new_order(
         .min_by(|a, b| a.discounted_price.partial_cmp(&b.discounted_price).unwrap());
 
     let (_discounted_price, _campaign_id) = match min_discounted_campaign {
-        Some(min_campaign) => (
-            min_campaign.discounted_price,
-            min_campaign.campaign_id,
-        ),
+        Some(min_campaign) => (min_campaign.discounted_price, min_campaign.campaign_id),
         None => (total_price, None),
     };
 
@@ -121,12 +141,63 @@ pub fn insert_new_order(
     let created_order: Order = diesel::insert_into(orders)
         .values(&new_order)
         .get_result(conn)?;
+
+    let order_with_fields: OrderWithFields = orders
+        .filter(schema::orders::dsl::id.eq(created_order.id))
+        .inner_join(users.on(schema::orders::dsl::user_id.eq(schema::users::id)))
+        .left_outer_join(
+            campaigns.on(schema::orders::dsl::campaign_id.eq(schema::campaigns::id.nullable())),
+        )
+        .inner_join(products.on(schema::products::dsl::id.eq_any(_product_ids.clone())))
+        .inner_join(categories.on(schema::products::dsl::category_id.eq(schema::categories::id)))
+        .select((
+            schema::orders::id,
+            schema::orders::price_without_discount,
+            schema::orders::discounted_price,
+            schema::orders::campaign_id.nullable(),
+            schema::orders::user_id,
+            schema::users::username,
+            schema::campaigns::description.nullable(),
+        ))
+        .first(conn)?;
+
+    let order_json = json!({
+        "id": order_with_fields.id,
+        "price_without_discount": order_with_fields.price_without_discount,
+        "discounted_price": order_with_fields.discounted_price,
+        "campaign_id": order_with_fields.campaign_id,
+        "user_id": order_with_fields.user_id,
+        "user": {
+            "username": order_with_fields.username,
+        },
+        "campaign": match order_with_fields.campaign_description {
+            Some(campaign_description) => {
+                json!({
+                    "description": campaign_description,
+                })
+            }
+            None => json!(null),
+        },
+        "products": order_products.iter().map(|product| {
+            json!({
+                "id": product.product.id,
+                "title": product.product.title,
+                "author": product.product.author,
+                "list_price": product.product.list_price,
+                "stock_quantity": product.product.stock_quantity,
+                "category": {
+                    "title": product.category_title,
+                },
+            })
+        }).collect::<Vec<_>>(),
+    });
+
     for _product_id in _product_ids {
         diesel::insert_into(orders_products)
             .values((order_id.eq(created_order.id), product_id.eq(_product_id)))
             .execute(conn)?;
     }
-    Ok(created_order)
+    Ok(order_json)
 }
 
 pub fn delete_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<String, DbError> {
