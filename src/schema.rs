@@ -25,7 +25,7 @@ diesel::table! {
         id -> Int4,
         price_without_discount -> Float8,
         discounted_price -> Float8,
-        campaign_id -> Int4,
+        campaign_id -> Nullable<Int4>,
         user_id -> Int4,
     }
 }

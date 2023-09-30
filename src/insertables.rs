@@ -1,5 +1,5 @@
 use diesel::Insertable;
-use rust_order_api::schema::{campaigns, products, users};
+use rust_order_api::schema::{campaigns, orders, products, users};
 use serde::{Deserialize, Serialize};
 
 #[derive(Insertable, Serialize, Deserialize, Clone)]
@@ -28,4 +28,13 @@ pub struct NewCampaign {
     pub discount_percent: i32,
     pub rule_author: String,
     pub rule_category: String,
+}
+
+#[derive(Insertable, Serialize, Deserialize, Clone)]
+#[diesel(table_name=orders)]
+pub struct NewOrder {
+    pub price_without_discount: f64,
+    pub discounted_price: f64,
+    pub campaign_id: Option<i32>,
+    pub user_id: i32,
 }

@@ -1,11 +1,14 @@
 mod controllers {
     pub mod campaigns;
+    pub mod functions;
+    pub mod orders;
     pub mod products;
     pub mod users;
 }
 mod insertables;
 use actix_web::{web, App, HttpServer};
 use controllers::campaigns;
+use controllers::orders;
 use controllers::products;
 use controllers::users;
 use diesel::{r2d2, PgConnection};
@@ -32,6 +35,10 @@ async fn main() -> std::io::Result<()> {
             .service(campaigns::get_campaign)
             .service(campaigns::create_campaign)
             .service(campaigns::delete_campaign)
+            .service(orders::get_orders)
+            .service(orders::get_order)
+            .service(orders::create_order)
+            .service(orders::delete_order)
     })
     .bind((
         "127.0.0.1",
