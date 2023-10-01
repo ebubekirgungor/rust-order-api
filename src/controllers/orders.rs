@@ -1,12 +1,15 @@
 use crate::controllers::functions;
 use crate::insertables::NewOrder;
 use actix_web::{delete, error, get, post, web, HttpResponse, Responder, Result};
+use diesel::dsl::sql;
+use diesel::sql_types::Text;
 use diesel::{prelude::*, r2d2};
 use rust_order_api::models::{Order, Product};
-use rust_order_api::schema;
+use rust_order_api::schema::{self};
 use schema::orders::dsl::*;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
 
@@ -22,17 +25,6 @@ pub struct ProductWithCategory {
     pub category_title: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct OrderWithCampaign {
-    id: i32,
-    price_without_discount: f64,
-    discounted_price: f64,
-    campaign_id: Option<i32>,
-    user_id: i32,
-    username: String,
-    campaign_description: Option<String>,
-}
-
 #[derive(Queryable, Debug)]
 pub struct OrderWithFields {
     id: i32,
@@ -44,17 +36,169 @@ pub struct OrderWithFields {
     campaign_description: Option<String>,
 }
 
-pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Order>, DbError> {
-    let all_orders = orders.select(Order::as_select()).load(conn).expect("error");
-    Ok(all_orders)
+pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
+    use rust_order_api::models::OrderToProduct;
+    use schema::campaigns::dsl::*;
+    use schema::categories::dsl::*;
+    use schema::products::dsl::*;
+    use schema::users::dsl::*;
+
+    let all_orders: HashMap<i32, Order> = orders
+        .select((schema::orders::id, Order::as_select()))
+        .load::<(i32, Order)>(conn)?
+        .into_iter()
+        .collect();
+
+    let order_values: Vec<&Order> = all_orders.values().collect();
+    let user_ids: Vec<i32> = all_orders.values().map(|order| order.user_id).collect();
+
+    let usernames: HashMap<i32, String> = users
+        .filter(schema::users::dsl::id.eq_any(user_ids))
+        .select((schema::users::id, sql::<Text>("username")))
+        .load::<(i32, String)>(conn)?
+        .into_iter()
+        .collect();
+
+    let order_with_fields: Vec<OrderWithFields> = orders
+        .inner_join(users.on(schema::orders::dsl::user_id.eq(schema::users::id)))
+        .left_outer_join(
+            campaigns.on(schema::orders::dsl::campaign_id.eq(schema::campaigns::id.nullable())),
+        )
+        .select((
+            schema::orders::id,
+            schema::orders::price_without_discount,
+            schema::orders::discounted_price,
+            schema::orders::campaign_id.nullable(),
+            schema::orders::user_id,
+            schema::users::username,
+            schema::campaigns::description.nullable(),
+        ))
+        .load(conn)
+        .expect("err");
+
+    let all_products: HashMap<i32, Vec<ProductWithCategory>> = OrderToProduct::belonging_to(&order_values)
+        .inner_join(products.inner_join(categories))
+        .select((schema::orders_products::order_id, Product::as_select(), schema::categories::title))
+        .load::<(i32, Product, String)>(conn)?
+        .into_iter()
+        .fold(HashMap::new(), |mut acc, (order_id, product, category_title)| {
+            acc.entry(order_id)
+                .or_insert_with(Vec::new)
+                .push(ProductWithCategory {
+                    product,
+                    category_title,
+                });
+            acc
+        });
+
+    let mut orders_json = vec![];
+
+    for order in order_with_fields {
+        let default_products: Vec<ProductWithCategory> = vec![];
+        let products_for_order = all_products.get(&order.id).unwrap_or(&default_products);
+        if let Some(_username) = usernames.get(&order.user_id) {
+            orders_json.push(json!({
+                "id": order.id,
+                "price_without_discount": order.price_without_discount,
+                "discounted_price": order.discounted_price,
+                "campaign_id": order.campaign_id,
+                "user_id": order.user_id,
+                "user": {
+                    "username": _username,
+                },
+                "campaign": match order.campaign_description {
+                    Some(campaign_description) => {
+                        json!({
+                            "description": campaign_description,
+                        })
+                    }
+                    None => json!(null),
+                },
+                "products": products_for_order.iter().map(|product| {
+                    json!({
+                        "id": product.product.id,
+                        "title": product.product.title,
+                        "author": product.product.author,
+                        "list_price": product.product.list_price,
+                        "stock_quantity": product.product.stock_quantity,
+                        "category": {
+                            "title": product.category_title,
+                        },
+                    })
+                }).collect::<Vec<_>>()
+            }));
+        }
+    }
+    Ok(orders_json)
 }
 
-pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Order, DbError> {
+pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Value, DbError> {
+    use rust_order_api::models::OrderToProduct;
+    use schema::campaigns::dsl::*;
+    use schema::categories::dsl::*;
+    use schema::products::dsl::*;
+    use schema::users::dsl::*;
+
     let order = orders
-        .filter(id.eq(order_id))
+        .filter(schema::orders::dsl::id.eq(order_id))
         .first::<Order>(conn)
-        .expect("error");
-    Ok(order)
+        .expect("err");
+
+    let order_with_fields: OrderWithFields = orders
+        .filter(schema::orders::dsl::id.eq(order_id))
+        .inner_join(users.on(schema::orders::dsl::user_id.eq(schema::users::id)))
+        .left_outer_join(
+            campaigns.on(schema::orders::dsl::campaign_id.eq(schema::campaigns::id.nullable())),
+        )
+        .select((
+            schema::orders::id,
+            schema::orders::price_without_discount,
+            schema::orders::discounted_price,
+            schema::orders::campaign_id.nullable(),
+            schema::orders::user_id,
+            schema::users::username,
+            schema::campaigns::description.nullable(),
+        ))
+        .first(conn)
+        .expect("err");
+
+    let all_products = OrderToProduct::belonging_to(&order)
+        .inner_join(products.inner_join(categories))
+        .select((Product::as_select(), schema::categories::title))
+        .load::<ProductWithCategory>(conn)?;
+
+    let order_json = json!({
+        "id": order_with_fields.id,
+        "price_without_discount": order_with_fields.price_without_discount,
+        "discounted_price": order_with_fields.discounted_price,
+        "campaign_id": order_with_fields.campaign_id,
+        "user_id": order_with_fields.user_id,
+        "user": {
+            "username": order_with_fields.username,
+        },
+        "campaign": match order_with_fields.campaign_description {
+            Some(campaign_description) => {
+                json!({
+                    "description": campaign_description,
+                })
+            }
+            None => json!(null),
+        },
+        "products": all_products.iter().map(|product| {
+            json!({
+                "id": product.product.id,
+                "title": product.product.title,
+                "author": product.product.author,
+                "list_price": product.product.list_price,
+                "stock_quantity": product.product.stock_quantity,
+                "category": {
+                    "title": product.category_title,
+                },
+            })
+        }).collect::<Vec<_>>(),
+    });
+
+    Ok(order_json)
 }
 
 pub fn insert_new_order(
@@ -148,8 +292,6 @@ pub fn insert_new_order(
         .left_outer_join(
             campaigns.on(schema::orders::dsl::campaign_id.eq(schema::campaigns::id.nullable())),
         )
-        .inner_join(products.on(schema::products::dsl::id.eq_any(_product_ids.clone())))
-        .inner_join(categories.on(schema::products::dsl::category_id.eq(schema::categories::id)))
         .select((
             schema::orders::id,
             schema::orders::price_without_discount,
