@@ -1,15 +1,47 @@
 use crate::insertables::NewUser;
 use actix_web::{delete, error, get, post, web, HttpResponse, Responder, Result};
 use diesel::{prelude::*, r2d2};
-use rust_order_api::models::User;
+use rust_order_api::models::{Order, User};
 use rust_order_api::schema;
 use schema::users::dsl::*;
+use serde::Serialize;
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
+
+#[derive(Serialize)]
+pub struct UserWithOrders {
+    pub id: i32,
+    pub username: String,
+    pub orders: Vec<Order>,
+}
 
 pub fn get_all_users(conn: &mut PgConnection) -> Result<Vec<User>, DbError> {
     let all_users = users.select(User::as_select()).load(conn).expect("error");
     Ok(all_users)
+}
+
+pub fn get_all_users_with_orders(conn: &mut PgConnection) -> Result<Vec<UserWithOrders>, DbError> {
+    let all_users = users.select(User::as_select()).load(conn).expect("error");
+    let orders = Order::belonging_to(&all_users)
+        .select(Order::as_select())
+        .load(conn)?;
+
+    let users_with_orders: Vec<UserWithOrders> = all_users
+        .iter()
+        .map(|user| {
+            let user_orders: Vec<Order> = orders
+                .iter()
+                .filter(|order| order.user_id == user.id)
+                .cloned()
+                .collect();
+            UserWithOrders {
+                id: user.id,
+                username: user.username.clone(),
+                orders: user_orders,
+            }
+        })
+        .collect();
+    Ok(users_with_orders)
 }
 
 pub fn get_user_by_id(conn: &mut PgConnection, user_id: i32) -> Result<User, DbError> {
@@ -38,6 +70,17 @@ async fn get_users(pool: web::Data<DbPool>) -> Result<impl Responder> {
     let all_users = web::block(move || {
         let mut conn = pool.get()?;
         get_all_users(&mut conn)
+    })
+    .await?
+    .map_err(error::ErrorInternalServerError)?;
+    Ok(HttpResponse::Ok().json(all_users))
+}
+
+#[get("/api/users_with_orders")]
+async fn get_users_with_orders(pool: web::Data<DbPool>) -> Result<impl Responder> {
+    let all_users = web::block(move || {
+        let mut conn = pool.get()?;
+        get_all_users_with_orders(&mut conn)
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;

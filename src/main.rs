@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .service(users::get_users)
+            .service(users::get_users_with_orders)
             .service(users::get_user)
             .service(users::create_user)
             .service(users::delete_user)

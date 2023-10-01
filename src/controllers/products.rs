@@ -1,26 +1,114 @@
 use crate::insertables::NewProduct;
 use actix_web::{delete, error, get, post, web, HttpResponse, Responder, Result};
 use diesel::{prelude::*, r2d2};
-use rust_order_api::models::Product;
 use rust_order_api::schema;
 use schema::products::dsl::*;
+use serde::Serialize;
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
 
-pub fn get_all_products(conn: &mut PgConnection) -> Result<Vec<Product>, DbError> {
+#[derive(Debug, Queryable, Serialize)]
+pub struct ProductWithCategory {
+    pub id: i32,
+    pub title: String,
+    pub category_id: i32,
+    pub author: String,
+    pub list_price: f64,
+    pub stock_quantity: i32,
+    pub category: CategoryTitle,
+}
+
+#[derive(Debug, Queryable, Serialize)]
+pub struct CategoryTitle {
+    pub title: String,
+}
+
+pub fn get_all_products(conn: &mut PgConnection) -> Result<Vec<ProductWithCategory>, DbError> {
+    use schema::categories::dsl::*;
     let all_products = products
-        .select(Product::as_select())
-        .load(conn)
-        .expect("error");
+        .inner_join(categories.on(schema::products::category_id.eq(schema::categories::id)))
+        .select((
+            schema::products::id,
+            schema::products::title,
+            schema::products::category_id,
+            schema::products::author,
+            schema::products::list_price,
+            schema::products::stock_quantity,
+            schema::categories::title,
+        ))
+        .load::<(i32, String, i32, String, f64, i32, String)>(conn)?
+        .into_iter()
+        .map(
+            |(
+                product_id,
+                product_title,
+                product_category_id,
+                product_author,
+                product_list_price,
+                product_stock_quantity,
+                category_info,
+            )| {
+                let category = CategoryTitle {
+                    title: category_info,
+                };
+
+                ProductWithCategory {
+                    id: product_id,
+                    title: product_title,
+                    category_id: product_category_id,
+                    author: product_author,
+                    list_price: product_list_price,
+                    stock_quantity: product_stock_quantity,
+                    category,
+                }
+            },
+        )
+        .collect();
+
     Ok(all_products)
 }
 
-pub fn get_product_by_id(conn: &mut PgConnection, product_id: i32) -> Result<Product, DbError> {
-    let product = products
-        .filter(id.eq(product_id))
-        .first::<Product>(conn)
-        .expect("error");
-    Ok(product)
+pub fn get_product_by_id(
+    conn: &mut PgConnection,
+    product_id: i32,
+) -> Result<ProductWithCategory, DbError> {
+    use schema::categories::dsl::*;
+    let product_with_category = products
+        .filter(schema::products::id.eq(product_id))
+        .inner_join(categories.on(schema::products::category_id.eq(schema::categories::id)))
+        .select((
+            schema::products::id,
+            schema::products::title,
+            schema::products::category_id,
+            schema::products::author,
+            schema::products::list_price,
+            schema::products::stock_quantity,
+            schema::categories::title,
+        ))
+        .first::<(i32, String, i32, String, f64, i32, String)>(conn)?;
+
+    let (
+        product_id,
+        product_title,
+        product_category_id,
+        product_author,
+        product_list_price,
+        product_stock_quantity,
+        category_info,
+    ) = product_with_category;
+    let category = CategoryTitle {
+        title: category_info,
+    };
+
+    Ok(ProductWithCategory {
+        id: product_id,
+        title: product_title,
+        category_id: product_category_id,
+        author: product_author,
+        list_price: product_list_price,
+        stock_quantity: product_stock_quantity,
+        category,
+    })
 }
 
 pub fn insert_new_product(
