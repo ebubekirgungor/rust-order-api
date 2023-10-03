@@ -202,7 +202,11 @@ async fn get_users(pool: web::Data<DbPool>) -> Result<impl Responder> {
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(all_users))
+
+    let all_users_json = serde_json::to_string_pretty(&all_users).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(all_users_json))
 }
 
 #[get("/api/users_with_orders")]
@@ -213,7 +217,11 @@ async fn get_users_with_orders(pool: web::Data<DbPool>) -> Result<impl Responder
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(all_users))
+
+    let all_users_json = serde_json::to_string_pretty(&all_users).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(all_users_json))
 }
 
 #[get("/api/users/{user_id}")]
@@ -224,7 +232,11 @@ async fn get_user(pool: web::Data<DbPool>, user_id: web::Path<i32>) -> Result<im
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(user))
+
+    let user_json = serde_json::to_string_pretty(&user).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(user_json))
 }
 
 #[get("/api/users_with_orders/{user_id}")]
@@ -238,7 +250,11 @@ async fn get_user_with_orders(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(user))
+
+    let user_json = serde_json::to_string_pretty(&user).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(user_json))
 }
 
 #[post("/api/users")]
@@ -249,7 +265,11 @@ async fn create_user(pool: web::Data<DbPool>, form: web::Json<NewUser>) -> Resul
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Created().json(user))
+
+    let user_json = serde_json::to_string_pretty(&user).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(user_json))
 }
 
 #[delete("/api/users/{user_id}")]

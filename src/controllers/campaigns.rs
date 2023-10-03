@@ -61,7 +61,11 @@ async fn get_campaigns(pool: web::Data<DbPool>) -> Result<impl Responder> {
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(all_campaigns))
+
+    let all_campaigns_json = serde_json::to_string_pretty(&all_campaigns).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(all_campaigns_json))
 }
 
 #[get("/api/campaigns/{campaign_id}")]
@@ -75,7 +79,11 @@ async fn get_campaign(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Ok().json(campaign))
+
+    let campaign_json = serde_json::to_string_pretty(&campaign).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(campaign_json))
 }
 
 #[post("/api/campaigns")]
@@ -98,7 +106,11 @@ async fn create_campaign(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-    Ok(HttpResponse::Created().json(campaign))
+
+    let campaign_json = serde_json::to_string_pretty(&campaign).expect("err");
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(campaign_json))
 }
 
 #[delete("/api/campaigns/{campaign_id}")]
