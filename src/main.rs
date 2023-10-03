@@ -26,6 +26,7 @@ async fn main() -> std::io::Result<()> {
             .service(users::get_users)
             .service(users::get_users_with_orders)
             .service(users::get_user)
+            .service(users::get_user_with_orders)
             .service(users::create_user)
             .service(users::delete_user)
             .service(products::get_products)
