@@ -145,11 +145,7 @@ async fn get_products(pool: web::Data<DbPool>) -> Result<impl Responder> {
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let all_products_json = serde_json::to_string_pretty(&all_products).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(all_products_json))
+    Ok(HttpResponse::Ok().json(all_products))
 }
 
 #[get("/api/products/{product_id}")]
@@ -163,11 +159,7 @@ async fn get_product(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let product_json = serde_json::to_string_pretty(&product).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(product_json))
+    Ok(HttpResponse::Ok().json(product))
 }
 
 #[post("/api/products")]
@@ -188,11 +180,7 @@ async fn create_product(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let product_json = serde_json::to_string_pretty(&product).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(product_json))
+    Ok(HttpResponse::Created().json(product))
 }
 
 #[delete("/api/products/{product_id}")]

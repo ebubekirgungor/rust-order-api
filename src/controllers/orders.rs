@@ -76,28 +76,20 @@ pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
         .load(conn)
         .expect("err");
 
-    let all_products: HashMap<i32, Vec<ProductWithCategory>> =
-        OrderToProduct::belonging_to(&order_values)
-            .inner_join(products.inner_join(categories))
-            .select((
-                schema::orders_products::order_id,
-                Product::as_select(),
-                schema::categories::title,
-            ))
-            .load::<(i32, Product, String)>(conn)?
-            .into_iter()
-            .fold(
-                HashMap::new(),
-                |mut acc, (order_id, product, category_title)| {
-                    acc.entry(order_id)
-                        .or_insert_with(Vec::new)
-                        .push(ProductWithCategory {
-                            product,
-                            category_title,
-                        });
-                    acc
-                },
-            );
+    let all_products: HashMap<i32, Vec<ProductWithCategory>> = OrderToProduct::belonging_to(&order_values)
+        .inner_join(products.inner_join(categories))
+        .select((schema::orders_products::order_id, Product::as_select(), schema::categories::title))
+        .load::<(i32, Product, String)>(conn)?
+        .into_iter()
+        .fold(HashMap::new(), |mut acc, (order_id, product, category_title)| {
+            acc.entry(order_id)
+                .or_insert_with(Vec::new)
+                .push(ProductWithCategory {
+                    product,
+                    category_title,
+                });
+            acc
+        });
 
     let mut orders_json = vec![];
 
@@ -363,11 +355,7 @@ async fn get_orders(pool: web::Data<DbPool>) -> Result<impl Responder> {
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let all_orders_json = serde_json::to_string_pretty(&all_orders).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(all_orders_json))
+    Ok(HttpResponse::Ok().json(all_orders))
 }
 
 #[get("/api/orders/{order_id}")]
@@ -378,11 +366,7 @@ async fn get_order(pool: web::Data<DbPool>, order_id: web::Path<i32>) -> Result<
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let order_json = serde_json::to_string_pretty(&order).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(order_json))
+    Ok(HttpResponse::Ok().json(order))
 }
 
 #[post("/api/orders")]
@@ -397,11 +381,7 @@ async fn create_order(
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
-
-    let order_json = serde_json::to_string_pretty(&order).expect("err");
-    Ok(HttpResponse::Ok()
-        .content_type("application/json")
-        .body(order_json))
+    Ok(HttpResponse::Created().json(order))
 }
 
 #[delete("/api/orders/{order_id}")]
