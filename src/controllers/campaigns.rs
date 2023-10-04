@@ -11,7 +11,7 @@ pub fn get_all_campaigns(conn: &mut PgConnection) -> Result<Vec<Campaign>, DbErr
     let all_campaigns = campaigns
         .select(Campaign::as_select())
         .load(conn)
-        .expect("error");
+        .expect("Campaigns could not get");
     Ok(all_campaigns)
 }
 
@@ -19,7 +19,7 @@ pub fn get_campaign_by_id(conn: &mut PgConnection, campaign_id: i32) -> Result<C
     let campaign = campaigns
         .filter(id.eq(campaign_id))
         .first::<Campaign>(conn)
-        .expect("error");
+        .expect("Campaign could not get");
     Ok(campaign)
 }
 

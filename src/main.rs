@@ -44,7 +44,7 @@ async fn main() -> std::io::Result<()> {
     let redis_pool = initialize_redis_pool();
     let storage = RedisStorage::connect("redis://127.0.0.1/")
         .await
-        .expect("err");
+        .expect("Redis storage error");
     let storage_data = web::Data::new(storage.clone());
     let http = async {
         HttpServer::new(move || {
@@ -98,12 +98,12 @@ async fn main() -> std::io::Result<()> {
 fn initialize_db_pool() -> DbPool {
     let conn_spec = std::env::var("DATABASE_URL").expect("Variable not defined");
     let manager = r2d2::ConnectionManager::<PgConnection>::new(conn_spec);
-    r2d2::Pool::builder().build(manager).expect("DB Error")
+    r2d2::Pool::builder().build(manager).expect("DB pool error")
 }
 
 fn initialize_redis_pool() -> RedisPool {
     let manager = RedisConnectionManager::new("redis://127.0.0.1:6379").unwrap();
     redis_r2d2::Pool::builder()
         .build(manager)
-        .expect("Redis Error")
+        .expect("Redis pool error")
 }

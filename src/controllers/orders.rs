@@ -101,7 +101,7 @@ pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
             schema::campaigns::description.nullable(),
         ))
         .load(conn)
-        .expect("err");
+        .expect("Could not get orders");
 
     let all_products: HashMap<i32, Vec<ProductWithCategory>> =
         OrderToProduct::belonging_to(&order_values)
@@ -177,7 +177,7 @@ pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Value, 
     let order = orders
         .filter(schema::orders::dsl::id.eq(order_id))
         .first::<Order>(conn)
-        .expect("err");
+        .expect("Could not get order");
 
     let order_with_fields: OrderWithFields = orders
         .filter(schema::orders::dsl::id.eq(order_id))
@@ -195,7 +195,7 @@ pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Value, 
             schema::campaigns::description.nullable(),
         ))
         .first(conn)
-        .expect("err");
+        .expect("Could not get order");
 
     let all_products = OrderToProduct::belonging_to(&order)
         .inner_join(products.inner_join(categories))
@@ -255,20 +255,20 @@ pub async fn insert_new_order(
     users
         .filter(schema::users::dsl::id.eq(_user_id))
         .first::<User>(&mut conn)
-        .expect("error");
+        .expect("Users could not get");
 
     diesel::update(products)
         .filter(schema::products::dsl::id.eq_any(&_product_ids))
         .set(stock_quantity.eq(stock_quantity - 1))
         .execute(&mut conn)
-        .expect("error");
+        .expect("Products could not update");
 
     let mut order_products = products
         .filter(schema::products::dsl::id.eq_any(&_product_ids))
         .inner_join(categories)
         .select((Product::as_select(), schema::categories::title))
         .load::<ProductWithCategory>(&mut conn)
-        .expect("error");
+        .expect("Products could not get");
 
     let all_campaigns;
 
@@ -288,14 +288,14 @@ pub async fn insert_new_order(
             all_campaigns = campaigns
                 .select(Campaign::as_select())
                 .load(&mut conn)
-                .expect("error");
+                .expect("Campaigns could not get");
             let _: () = redis::cmd("SET")
                 .arg("campaigns")
                 .arg(serde_json::to_string(&all_campaigns).unwrap())
                 .arg("EX")
                 .arg(30)
                 .query(&mut *redis_conn)
-                .expect("err");
+                .expect("Cache could not set (redis)");
         }
     }
 
@@ -436,8 +436,8 @@ async fn create_order(
     form: web::Json<OrderDto>,
 ) -> Result<impl Responder> {
     let order = web::block(move || {
-        let db_conn = db_pool.get().expect("err");
-        let redis_conn: PooledConnection<RedisConnectionManager> = redis_pool.get().expect("err");
+        let db_conn = db_pool.get().expect("DB pool could not get");
+        let redis_conn: PooledConnection<RedisConnectionManager> = redis_pool.get().expect("Redis pool could not get");
         let product_ids = form.product_ids.clone();
         insert_new_order(db_conn, redis_conn, storage, form.user_id, product_ids)
     })

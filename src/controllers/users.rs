@@ -61,7 +61,7 @@ fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
             schema::campaigns::description.nullable(),
         ))
         .load(conn)
-        .expect("err");
+        .expect("Orders could not get");
 
     let all_products: HashMap<i32, Vec<ProductWithCategory>> =
         OrderToProduct::belonging_to(&order_values)
@@ -123,12 +123,12 @@ fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
 }
 
 pub fn get_all_users(conn: &mut PgConnection) -> Result<Vec<User>, DbError> {
-    let all_users = users.select(User::as_select()).load(conn).expect("error");
+    let all_users = users.select(User::as_select()).load(conn).expect("Users could not get");
     Ok(all_users)
 }
 
 pub fn get_all_users_with_orders(conn: &mut PgConnection) -> Result<Vec<UserWithOrders>, DbError> {
-    let all_users = users.select(User::as_select()).load(conn).expect("error");
+    let all_users = users.select(User::as_select()).load(conn).expect("Users could not get");
 
     let users_with_orders: Vec<UserWithOrders> = all_users
         .iter()
@@ -153,7 +153,7 @@ pub fn get_user_by_id(conn: &mut PgConnection, user_id: i32) -> Result<User, DbE
     let user = users
         .filter(id.eq(user_id))
         .first::<User>(conn)
-        .expect("error");
+        .expect("User could not get");
     Ok(user)
 }
 
@@ -164,7 +164,7 @@ pub fn get_user_by_id_with_orders(
     let user = users
         .filter(id.eq(user_id))
         .first::<User>(conn)
-        .expect("error");
+        .expect("User could not get");
 
     let user_orders = get_all_orders(conn)
         .unwrap()

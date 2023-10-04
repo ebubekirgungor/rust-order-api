@@ -51,19 +51,19 @@ fn main() -> std::io::Result<()> {
     let mut products_json = String::new();
     let mut users_json = String::new();
     fs::File::open("src/bin/campaigns.json")
-        .expect("can't open")
+        .expect("File could not open")
         .read_to_string(&mut campaigns_json)
         .unwrap();
     fs::File::open("src/bin/categories.json")
-        .expect("can't open")
+        .expect("File could not open")
         .read_to_string(&mut categories_json)
         .unwrap();
     fs::File::open("src/bin/products.json")
-        .expect("can't open")
+        .expect("File could not open")
         .read_to_string(&mut products_json)
         .unwrap();
     fs::File::open("src/bin/users.json")
-        .expect("can't open")
+        .expect("File could not open")
         .read_to_string(&mut users_json)
         .unwrap();
 
