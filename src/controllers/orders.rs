@@ -2,6 +2,7 @@ use crate::controllers::functions;
 use crate::insertables::NewOrder;
 use actix_web::{delete, error, get, post, web, HttpResponse, Responder, Result};
 use diesel::dsl::sql;
+use diesel::r2d2::{Pool, PooledConnection};
 use diesel::sql_types::Text;
 use diesel::{prelude::*, r2d2};
 use rust_order_api::models::{Order, Product};
@@ -12,6 +13,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
+use r2d2_redis::{redis, RedisConnectionManager};
 
 #[derive(Deserialize)]
 struct OrderDto {
@@ -76,20 +78,28 @@ pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
         .load(conn)
         .expect("err");
 
-    let all_products: HashMap<i32, Vec<ProductWithCategory>> = OrderToProduct::belonging_to(&order_values)
-        .inner_join(products.inner_join(categories))
-        .select((schema::orders_products::order_id, Product::as_select(), schema::categories::title))
-        .load::<(i32, Product, String)>(conn)?
-        .into_iter()
-        .fold(HashMap::new(), |mut acc, (order_id, product, category_title)| {
-            acc.entry(order_id)
-                .or_insert_with(Vec::new)
-                .push(ProductWithCategory {
-                    product,
-                    category_title,
-                });
-            acc
-        });
+    let all_products: HashMap<i32, Vec<ProductWithCategory>> =
+        OrderToProduct::belonging_to(&order_values)
+            .inner_join(products.inner_join(categories))
+            .select((
+                schema::orders_products::order_id,
+                Product::as_select(),
+                schema::categories::title,
+            ))
+            .load::<(i32, Product, String)>(conn)?
+            .into_iter()
+            .fold(
+                HashMap::new(),
+                |mut acc, (order_id, product, category_title)| {
+                    acc.entry(order_id)
+                        .or_insert_with(Vec::new)
+                        .push(ProductWithCategory {
+                            product,
+                            category_title,
+                        });
+                    acc
+                },
+            );
 
     let mut orders_json = vec![];
 
@@ -203,6 +213,7 @@ pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Value, 
 
 pub fn insert_new_order(
     conn: &mut PgConnection,
+    mut redis_conn: PooledConnection<RedisConnectionManager>,
     _user_id: i32,
     _product_ids: Vec<i32>,
 ) -> Result<Value, DbError> {
@@ -233,10 +244,34 @@ pub fn insert_new_order(
         .load::<ProductWithCategory>(conn)
         .expect("error");
 
-    let all_campaigns = campaigns
-        .select(Campaign::as_select())
-        .load(conn)
-        .expect("error");
+    let all_campaigns;
+
+    let campaigns_result: Option<String> = redis::cmd("GET")
+        .arg("campaigns")
+        .query(&mut *redis_conn)
+        .unwrap();
+
+    match campaigns_result {
+        Some(data) => match serde_json::from_str::<Vec<Campaign>>(&data) {
+            Ok(_campaigns) => all_campaigns = _campaigns,
+            Err(_) => {
+                all_campaigns = Vec::new();
+            }
+        },
+        None => {
+            all_campaigns = campaigns
+                .select(Campaign::as_select())
+                .load(conn)
+                .expect("error");
+            let _: () = redis::cmd("SET")
+                .arg("campaigns")
+                .arg(serde_json::to_string(&all_campaigns).unwrap())
+                .arg("EX")
+                .arg(30)
+                .query(&mut *redis_conn)
+                .expect("err");
+        }
+    }
 
     let mut total_price: f64 = order_products
         .iter()
@@ -371,13 +406,15 @@ async fn get_order(pool: web::Data<DbPool>, order_id: web::Path<i32>) -> Result<
 
 #[post("/api/orders")]
 async fn create_order(
-    pool: web::Data<DbPool>,
+    db_pool: web::Data<DbPool>,
+    redis_pool: web::Data<Pool<RedisConnectionManager>>,
     form: web::Json<OrderDto>,
 ) -> Result<impl Responder> {
     let order = web::block(move || {
-        let mut conn = pool.get()?;
+        let mut db_conn = db_pool.get()?;
+        let redis_conn: PooledConnection<RedisConnectionManager> = redis_pool.get().expect("err");
         let product_ids = form.product_ids.clone();
-        insert_new_order(&mut conn, form.user_id, product_ids)
+        insert_new_order(&mut db_conn, redis_conn, form.user_id, product_ids)
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;

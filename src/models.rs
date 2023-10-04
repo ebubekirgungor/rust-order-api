@@ -1,5 +1,5 @@
 use diesel::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use crate::schema::{users, categories, products, orders, campaigns, orders_products};
 
 #[derive(Serialize, Queryable, Selectable, Insertable, Identifiable, Debug, PartialEq)]
@@ -28,7 +28,7 @@ pub struct Product {
     pub stock_quantity: i32,
 }
 
-#[derive(Serialize, Queryable, Selectable, Identifiable, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Queryable, Selectable, Identifiable, Debug, PartialEq)]
 #[diesel(table_name = campaigns)]
 pub struct Campaign {
     pub id: i32,
