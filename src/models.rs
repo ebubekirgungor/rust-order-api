@@ -41,7 +41,7 @@ pub struct Campaign {
     pub rule_category: Option<String>,
 }
 
-#[derive(Serialize, Queryable, Selectable, Identifiable, Insertable, Associations, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Queryable, Selectable, Identifiable, Insertable, Associations, Debug, Clone, PartialEq)]
 #[diesel(belongs_to(User))]
 #[diesel(belongs_to(Campaign))]
 #[diesel(table_name = orders)]

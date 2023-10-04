@@ -1,10 +1,12 @@
 use crate::controllers::functions;
 use crate::insertables::NewOrder;
+use crate::QueryOrder;
 use actix_web::{delete, error, get, post, web, HttpResponse, Responder, Result};
 use diesel::dsl::sql;
 use diesel::r2d2::{Pool, PooledConnection};
 use diesel::sql_types::Text;
 use diesel::{prelude::*, r2d2};
+use futures::TryFutureExt;
 use rust_order_api::models::{Order, Product};
 use rust_order_api::schema::{self};
 use schema::orders::dsl::*;
@@ -13,6 +15,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 type DbError = Box<dyn std::error::Error + Send + Sync>;
 type DbPool = r2d2::Pool<r2d2::ConnectionManager<PgConnection>>;
+use apalis::prelude::*;
+use apalis::redis::RedisStorage;
 use r2d2_redis::{redis, RedisConnectionManager};
 
 #[derive(Deserialize)]
@@ -36,6 +40,27 @@ pub struct OrderWithFields {
     user_id: i32,
     username: String,
     campaign_description: Option<String>,
+}
+
+async fn order_worker(
+    storage: &RedisStorage<QueryOrder>,
+    conn: &mut PgConnection,
+    order: &NewOrder,
+) -> Result<Order, DbError> {
+    let mut storage = storage.clone();
+    let created_order: Order = diesel::insert_into(orders)
+        .values(&*order)
+        .get_result(conn)?;
+    storage
+        .push(QueryOrder {
+            id: created_order.id,
+            price_without_discount: created_order.price_without_discount,
+            discounted_price: created_order.discounted_price,
+            campaign_id: created_order.campaign_id,
+            user_id: created_order.user_id,
+        })
+        .await?;
+    Ok(created_order)
 }
 
 pub fn get_all_orders(conn: &mut PgConnection) -> Result<Vec<Value>, DbError> {
@@ -211,9 +236,10 @@ pub fn get_order_by_id(conn: &mut PgConnection, order_id: i32) -> Result<Value, 
     Ok(order_json)
 }
 
-pub fn insert_new_order(
-    conn: &mut PgConnection,
+pub async fn insert_new_order(
+    mut conn: PooledConnection<r2d2::ConnectionManager<PgConnection>>,
     mut redis_conn: PooledConnection<RedisConnectionManager>,
+    storage: web::Data<RedisStorage<QueryOrder>>,
     _user_id: i32,
     _product_ids: Vec<i32>,
 ) -> Result<Value, DbError> {
@@ -228,20 +254,20 @@ pub fn insert_new_order(
 
     users
         .filter(schema::users::dsl::id.eq(_user_id))
-        .first::<User>(conn)
+        .first::<User>(&mut conn)
         .expect("error");
 
     diesel::update(products)
         .filter(schema::products::dsl::id.eq_any(&_product_ids))
         .set(stock_quantity.eq(stock_quantity - 1))
-        .execute(conn)
+        .execute(&mut conn)
         .expect("error");
 
     let mut order_products = products
         .filter(schema::products::dsl::id.eq_any(&_product_ids))
         .inner_join(categories)
         .select((Product::as_select(), schema::categories::title))
-        .load::<ProductWithCategory>(conn)
+        .load::<ProductWithCategory>(&mut conn)
         .expect("error");
 
     let all_campaigns;
@@ -261,7 +287,7 @@ pub fn insert_new_order(
         None => {
             all_campaigns = campaigns
                 .select(Campaign::as_select())
-                .load(conn)
+                .load(&mut conn)
                 .expect("error");
             let _: () = redis::cmd("SET")
                 .arg("campaigns")
@@ -316,10 +342,8 @@ pub fn insert_new_order(
         campaign_id: _campaign_id,
         user_id: _user_id.to_owned(),
     };
-
-    let created_order: Order = diesel::insert_into(orders)
-        .values(&new_order)
-        .get_result(conn)?;
+    let order_queue = order_worker(&storage, &mut conn, &new_order);
+    let created_order = order_queue.await?;
 
     let order_with_fields: OrderWithFields = orders
         .filter(schema::orders::dsl::id.eq(created_order.id))
@@ -336,7 +360,7 @@ pub fn insert_new_order(
             schema::users::username,
             schema::campaigns::description.nullable(),
         ))
-        .first(conn)?;
+        .first(&mut conn)?;
 
     let order_json = json!({
         "id": order_with_fields.id,
@@ -371,8 +395,8 @@ pub fn insert_new_order(
 
     for _product_id in _product_ids {
         diesel::insert_into(orders_products)
-            .values((order_id.eq(created_order.id), product_id.eq(_product_id)))
-            .execute(conn)?;
+            .values((order_id.eq(&created_order.id), product_id.eq(_product_id)))
+            .execute(&mut conn)?;
     }
     Ok(order_json)
 }
@@ -408,16 +432,18 @@ async fn get_order(pool: web::Data<DbPool>, order_id: web::Path<i32>) -> Result<
 async fn create_order(
     db_pool: web::Data<DbPool>,
     redis_pool: web::Data<Pool<RedisConnectionManager>>,
+    storage: web::Data<RedisStorage<QueryOrder>>,
     form: web::Json<OrderDto>,
 ) -> Result<impl Responder> {
     let order = web::block(move || {
-        let mut db_conn = db_pool.get()?;
+        let db_conn = db_pool.get().expect("err");
         let redis_conn: PooledConnection<RedisConnectionManager> = redis_pool.get().expect("err");
         let product_ids = form.product_ids.clone();
-        insert_new_order(&mut db_conn, redis_conn, form.user_id, product_ids)
+        insert_new_order(db_conn, redis_conn, storage, form.user_id, product_ids)
     })
     .await?
-    .map_err(error::ErrorInternalServerError)?;
+    .map_err(error::ErrorInternalServerError)
+    .await?;
     Ok(HttpResponse::Created().json(order))
 }
 
