@@ -13,7 +13,7 @@ $ git clone https://github.com/ebubekirgungor/rust-order-api.git
 
 ```bash
 # Install diesel client
-$ cargo install diesel_cli
+$ cargo install diesel_cli --no-default-features --features postgres
 # Run PostgreSql and Redis using docker
 $ docker compose up -d
 # Migrate database
