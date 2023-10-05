@@ -6,6 +6,7 @@
 
 ```bash
 $ git clone https://github.com/ebubekirgungor/rust-order-api.git
+$ cd rust-order-api
 ```
 
 - Change environment variables in .env file
@@ -17,7 +18,7 @@ $ cargo install diesel_cli --no-default-features --features postgres
 # Run PostgreSql and Redis using docker
 $ docker compose up -d
 # Migrate database
-$ diesel migration run
+$ diesel setup
 # Seed database
 $ cargo run --bin seed
 ```
