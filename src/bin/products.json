@@ -57,30 +57,14 @@
   },
   {
     "id": 8,
-    "title": "Allah De Ötesini Bırak",
-    "category_id": 4,
-    "author": "Uğur Koşar",
-    "list_price": 39.6,
-    "stock_quantity": 18
-  },
-  {
-    "id": 9,
-    "title": "Aşk 5 Vakittir",
-    "category_id": 4,
-    "author": "Mehmet Yıldız",
-    "list_price": 42,
-    "stock_quantity": 9
-  },
-  {
-    "id": 10,
     "title": "Benim Zürafam Uçabilir",
-    "category_id": 5,
+    "category_id": 4,
     "author": "Mert Arık",
     "list_price": 27.3,
     "stock_quantity": 12
   },
   {
-    "id": 11,
+    "id": 9,
     "title": "Kuyucaklı Yusuf",
     "category_id": 1,
     "author": "Sabahattin Ali",
@@ -88,31 +72,31 @@
     "stock_quantity": 2
   },
   {
-    "id": 12,
+    "id": 10,
     "title": "Kamyon - Seçme Öyküler",
-    "category_id": 6,
+    "category_id": 5,
     "author": "Sabahattin Ali",
     "list_price": 9.75,
     "stock_quantity": 9
   },
   {
-    "id": 13,
+    "id": 11,
     "title": "Kendime Düşünceler",
-    "category_id": 7,
+    "category_id": 6,
     "author": "Marcus Aurelius",
     "list_price": 14.4,
     "stock_quantity": 1
   },
   {
-    "id": 14,
+    "id": 12,
     "title": "Denemeler - Hasan Ali Yücel Klasikleri",
-    "category_id": 7,
+    "category_id": 6,
     "author": "Michel de Montaigne",
     "list_price": 24,
     "stock_quantity": 4
   },
   {
-    "id": 15,
+    "id": 13,
     "title": "Animal Farm",
     "category_id": 1,
     "author": "George Orwell",
@@ -120,7 +104,7 @@
     "stock_quantity": 1
   },
   {
-    "id": 16,
+    "id": 14,
     "title": "Dokuzuncu Hariciye Koğuşu",
     "category_id": 1,
     "author": "Peyami Safa",
